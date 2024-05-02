@@ -1,4 +1,4 @@
-﻿#region Copyright notice and license
+#region Copyright notice and license
 // Protocol Buffers - Google's data interchange format
 // Copyright 2015 Google Inc.  All rights reserved.
 //
@@ -94,8 +94,25 @@ namespace Google.Protobuf
         public static byte[] ToByteArray(this IMessage message)
         {
             ProtoPreconditions.CheckNotNull(message, nameof(message));
-            byte[] result = new byte[message.CalculateSize()];
-            CodedOutputStream output = new CodedOutputStream(result);
+            Memory<byte> result = TempContext.AllocBytes(message.CalculateSize());
+            CodedOutputStream output = TempContext.codedOutputStream;
+            output.Initialize(result);
+            message.WriteTo(output);
+            output.CheckNoSpaceLeft();
+            return result.ToArray();
+        }
+
+        /// <summary>
+        /// Converts the given message into a byte array in protobuf encoding.
+        /// </summary>
+        /// <param name="message">The message to convert.</param>
+        /// <returns>The message data as a byte array.</returns>
+        public static Memory<byte> ToByteMemory(this IMessage message)
+        {
+            ProtoPreconditions.CheckNotNull(message, nameof(message));
+            Memory<byte> result = TempContext.AllocBytes(message.CalculateSize());
+            CodedOutputStream output = TempContext.codedOutputStream;
+            output.Initialize(result);
             message.WriteTo(output);
             output.CheckNoSpaceLeft();
             return result;
@@ -110,7 +127,8 @@ namespace Google.Protobuf
         {
             ProtoPreconditions.CheckNotNull(message, nameof(message));
             ProtoPreconditions.CheckNotNull(output, nameof(output));
-            CodedOutputStream codedOutput = new CodedOutputStream(output);
+            CodedOutputStream codedOutput = TempContext.codedOutputStream;
+            codedOutput.Initialize(output);
             message.WriteTo(codedOutput);
             codedOutput.Flush();
         }
@@ -124,7 +142,8 @@ namespace Google.Protobuf
         {
             ProtoPreconditions.CheckNotNull(message, nameof(message));
             ProtoPreconditions.CheckNotNull(output, nameof(output));
-            CodedOutputStream codedOutput = new CodedOutputStream(output);
+            CodedOutputStream codedOutput = TempContext.codedOutputStream;
+            codedOutput.Initialize(output);
             codedOutput.WriteLength(message.CalculateSize());
             message.WriteTo(codedOutput);
             codedOutput.Flush();
@@ -138,7 +157,7 @@ namespace Google.Protobuf
         public static ByteString ToByteString(this IMessage message)
         {
             ProtoPreconditions.CheckNotNull(message, nameof(message));
-            return ByteString.AttachBytes(message.ToByteArray());
+            return ByteString.AttachBytes(message.ToByteMemory());
         }
 
         /// <summary>
@@ -239,11 +258,10 @@ namespace Google.Protobuf
         {
             ProtoPreconditions.CheckNotNull(message, nameof(message));
             ProtoPreconditions.CheckNotNull(data, nameof(data));
-            CodedInputStream input = new CodedInputStream(data)
-            {
-                DiscardUnknownFields = discardUnknownFields,
-                ExtensionRegistry = registry
-            };
+            var input = TempContext.codedInputStream;
+            input.Initialize(data);
+            input.DiscardUnknownFields = discardUnknownFields;
+            input.ExtensionRegistry = registry;
             message.MergeFrom(input);
             input.CheckReadEndOfStreamTag();
         }
@@ -252,11 +270,10 @@ namespace Google.Protobuf
         {
             ProtoPreconditions.CheckNotNull(message, nameof(message));
             ProtoPreconditions.CheckNotNull(data, nameof(data));
-            CodedInputStream input = new CodedInputStream(data, offset, length)
-            {
-                DiscardUnknownFields = discardUnknownFields,
-                ExtensionRegistry = registry
-            };
+            var input = TempContext.codedInputStream;
+            input.Initialize(data, offset, length);
+            input.DiscardUnknownFields = discardUnknownFields;
+            input.ExtensionRegistry = registry;
             message.MergeFrom(input);
             input.CheckReadEndOfStreamTag();
         }
@@ -265,7 +282,8 @@ namespace Google.Protobuf
         {
             ProtoPreconditions.CheckNotNull(message, nameof(message));
             ProtoPreconditions.CheckNotNull(data, nameof(data));
-            CodedInputStream input = data.CreateCodedInput();
+            var input = TempContext.codedInputStream;
+            data.InitializeCodedInput(input);
             input.DiscardUnknownFields = discardUnknownFields;
             input.ExtensionRegistry = registry;
             message.MergeFrom(input);
@@ -276,11 +294,10 @@ namespace Google.Protobuf
         {
             ProtoPreconditions.CheckNotNull(message, nameof(message));
             ProtoPreconditions.CheckNotNull(input, nameof(input));
-            CodedInputStream codedInput = new CodedInputStream(input)
-            {
-                DiscardUnknownFields = discardUnknownFields,
-                ExtensionRegistry = registry
-            };
+            var codedInput = TempContext.codedInputStream;
+            codedInput.Initialize(input);
+            codedInput.DiscardUnknownFields = discardUnknownFields;
+            codedInput.ExtensionRegistry = registry;
             message.MergeFrom(codedInput);
             codedInput.CheckReadEndOfStreamTag();
         }

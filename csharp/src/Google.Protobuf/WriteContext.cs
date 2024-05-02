@@ -1,4 +1,4 @@
-﻿#region Copyright notice and license
+#region Copyright notice and license
 // Protocol Buffers - Google's data interchange format
 // Copyright 2008 Google Inc.  All rights reserved.
 //
@@ -41,7 +41,7 @@ namespace Google.Protobuf
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static void Initialize(CodedOutputStream output, out WriteContext ctx)
         {
-            ctx.buffer = new Span<byte>(output.InternalBuffer);
+            ctx.buffer = output.InternalBuffer.Span;
             // ideally we would use a reference to the original state, but that doesn't seem possible
             // so we just copy the struct that holds the state. We will need to later store the state back
             // into CodedOutputStream if we want to keep it usable.

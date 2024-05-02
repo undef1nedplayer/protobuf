@@ -30,13 +30,17 @@ namespace Google.Protobuf
     {
         private static readonly ByteString empty = new ByteString(new byte[0]);
 
-        private readonly ReadOnlyMemory<byte> bytes;
+        public ReadOnlyMemory<byte> bytes;
 
         /// <summary>
         /// Internal use only. Ensure that the provided memory is not mutated and belongs to this instance.
         /// </summary>
         internal static ByteString AttachBytes(ReadOnlyMemory<byte> bytes)
         {
+            if (TempContext.byteStringFactory != null)
+            {
+                return TempContext.byteStringFactory(bytes);
+            }
             return new ByteString(bytes);
         }
 
@@ -57,6 +61,10 @@ namespace Google.Protobuf
         private ByteString(ReadOnlyMemory<byte> bytes)
         {
             this.bytes = bytes;
+        }
+
+        public ByteString()
+        {
         }
 
         /// <summary>
@@ -305,6 +313,25 @@ namespace Google.Protobuf
                 // Slow path. BytesString is not an array, or is a slice of an array.
                 // Convert memory and pass result to WriteRawBytes.
                 return new CodedInputStream(bytes.ToArray());
+            }
+        }
+
+        /// <summary>
+        /// Initialize a CodedInputStream from this ByteString's data.
+        /// </summary>
+        public void InitializeCodedInput(CodedInputStream input)
+        {
+            // We trust CodedInputStream not to reveal the provided byte array or modify it
+            if (MemoryMarshal.TryGetArray(bytes, out ArraySegment<byte> segment) && segment.Count == bytes.Length)
+            {
+                // Fast path. ByteString was created with a complete array.
+                input.Initialize(segment.Array, segment.Offset, segment.Count);
+            }
+            else
+            {
+                // Slow path. BytesString is not an array, or is a slice of an array.
+                // Convert memory and pass result to WriteRawBytes.
+                input.Initialize(bytes.ToArray());
             }
         }
 

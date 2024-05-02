@@ -1,4 +1,4 @@
-﻿#region Copyright notice and license
+#region Copyright notice and license
 // Protocol Buffers - Google's data interchange format
 // Copyright 2008 Google Inc.  All rights reserved.
 //
@@ -405,7 +405,7 @@ namespace Google.Protobuf
         /// <exception cref="InvalidProtocolBufferException">
         /// the end of the stream or the current limit was reached
         /// </exception>
-        public static byte[] ReadRawBytes(ref ReadOnlySpan<byte> buffer, ref ParserInternalState state, int size)
+        public static ReadOnlyMemory<byte> ReadRawBytes(ref ReadOnlySpan<byte> buffer, ref ParserInternalState state, int size)
         {
             if (size < 0)
             {
@@ -415,8 +415,8 @@ namespace Google.Protobuf
             if (size <= state.bufferSize - state.bufferPos)
             {
                 // We have all the bytes we need already.
-                byte[] bytes = new byte[size];
-                buffer.Slice(state.bufferPos, size).CopyTo(bytes);
+                Memory<byte> bytes = TempContext.AllocBytes(size);
+                buffer.Slice(state.bufferPos, size).CopyTo(bytes.Span);
                 state.bufferPos += size;
                 return bytes;
             }
@@ -424,7 +424,7 @@ namespace Google.Protobuf
             return ReadRawBytesSlow(ref buffer, ref state, size);
         }
 
-        private static byte[] ReadRawBytesSlow(ref ReadOnlySpan<byte> buffer, ref ParserInternalState state, int size)
+        private static ReadOnlyMemory<byte> ReadRawBytesSlow(ref ReadOnlySpan<byte> buffer, ref ParserInternalState state, int size)
         {
             ValidateCurrentLimit(ref buffer, ref state, size);
 
@@ -434,8 +434,8 @@ namespace Google.Protobuf
                 // Reading more bytes than are in the buffer, but not an excessive number
                 // of bytes.  We can safely allocate the resulting array ahead of time.
 
-                byte[] bytes = new byte[size];
-                ReadRawBytesIntoSpan(ref buffer, ref state, size, bytes);
+                Memory<byte> bytes = TempContext.AllocBytes(size);
+                ReadRawBytesIntoSpan(ref buffer, ref state, size, bytes.Span);
                 return bytes;
             }
             else
@@ -448,11 +448,12 @@ namespace Google.Protobuf
                 // malicious message must actually *be* extremely large to cause
                 // problems.  Meanwhile, we limit the allowed size of a message elsewhere.
 
-                List<byte[]> chunks = new List<byte[]>();
+                List<Memory<byte>> chunks = TempContext.chunks;
+                chunks.Clear();
 
                 int pos = state.bufferSize - state.bufferPos;
-                byte[] firstChunk = new byte[pos];
-                buffer.Slice(state.bufferPos, pos).CopyTo(firstChunk);
+                Memory<byte> firstChunk = TempContext.AllocBytes(pos);
+                buffer.Slice(state.bufferPos, pos).CopyTo(firstChunk.Span);
                 chunks.Add(firstChunk);
                 state.bufferPos = state.bufferSize;
 
@@ -461,21 +462,21 @@ namespace Google.Protobuf
                 while (sizeLeft > 0)
                 {
                     state.segmentedBufferHelper.RefillBuffer(ref buffer, ref state, true);
-                    byte[] chunk = new byte[Math.Min(sizeLeft, state.bufferSize)];
+                    Memory<byte> chunk = TempContext.AllocBytes(Math.Min(sizeLeft, state.bufferSize));
 
                     buffer.Slice(0, chunk.Length)
-                        .CopyTo(chunk);
+                        .CopyTo(chunk.Span);
                     state.bufferPos += chunk.Length;
                     sizeLeft -= chunk.Length;
                     chunks.Add(chunk);
                 }
 
                 // OK, got everything.  Now concatenate it all into one buffer.
-                byte[] bytes = new byte[size];
+                Memory<byte> bytes = TempContext.AllocBytes(size);
                 int newPos = 0;
-                foreach (byte[] chunk in chunks)
+                foreach (Memory<byte> chunk in chunks)
                 {
-                    Buffer.BlockCopy(chunk, 0, bytes, newPos, chunk.Length);
+                    chunk.CopyTo(bytes.Slice(newPos, chunk.Length));
                     newPos += chunk.Length;
                 }
 
@@ -637,7 +638,7 @@ namespace Google.Protobuf
             // This will be called when reading from a Stream because we don't know the length of the stream,
             // or there is not enough data in the sequence. If there is not enough data then ReadRawBytes will
             // throw an exception.
-            return WritingPrimitives.Utf8Encoding.GetString(ReadRawBytes(ref buffer, ref state, length), 0, length);
+            return WritingPrimitives.Utf8Encoding.GetString(ReadRawBytes(ref buffer, ref state, length).Span);
         }
 
         /// <summary>

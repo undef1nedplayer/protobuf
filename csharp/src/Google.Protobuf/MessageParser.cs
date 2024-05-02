@@ -1,4 +1,4 @@
-﻿#region Copyright notice and license
+#region Copyright notice and license
 // Protocol Buffers - Google's data interchange format
 // Copyright 2015 Google Inc.  All rights reserved.
 //
@@ -20,7 +20,7 @@ namespace Google.Protobuf
     /// </summary>
     public class MessageParser
     {
-        private readonly Func<IMessage> factory;
+        private Func<IMessage> factory;
         private protected bool DiscardUnknownFields { get; }
 
         internal ExtensionRegistry Extensions { get; }
@@ -32,11 +32,16 @@ namespace Google.Protobuf
             Extensions = extensions;
         }
 
+        public void SetFactory(Func<IMessage> factory)
+        {
+            this.factory = factory;
+        }
+
         /// <summary>
         /// Creates a template instance ready for population.
         /// </summary>
         /// <returns>An empty message.</returns>
-        internal IMessage CreateTemplate()
+        public IMessage CreateTemplate()
         {
             return factory();
         }
@@ -223,7 +228,7 @@ namespace Google.Protobuf
         // The current implementation avoids a virtual method call and a cast, which *may* be significant in some cases.
         // Benchmarking work is required to measure the significance - but it's only a few lines of code in any case.
         // The API wouldn't change anyway - just the implementation - so this work can be deferred.
-        private readonly Func<T> factory;
+        private Func<T> factory;
 
         /// <summary>
         /// Creates a new parser.
@@ -242,11 +247,17 @@ namespace Google.Protobuf
             this.factory = factory;
         }
 
+        public void SetFactory(Func<T> factory)
+        {
+            base.SetFactory(()=> this.factory());
+            this.factory = factory;
+        }
+
         /// <summary>
         /// Creates a template instance ready for population.
         /// </summary>
         /// <returns>An empty message.</returns>
-        internal new T CreateTemplate()
+        public new T CreateTemplate()
         {
             return factory();
         }

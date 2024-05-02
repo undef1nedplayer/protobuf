@@ -1,4 +1,4 @@
-﻿#region Copyright notice and license
+#region Copyright notice and license
 // Protocol Buffers - Google's data interchange format
 // Copyright 2008 Google Inc.  All rights reserved.
 //
@@ -99,7 +99,7 @@ namespace Google.Protobuf
             if (state.writeBufferHelper.codedOutputStream?.InternalOutputStream != null)
             {
                 // because we're using coded output stream, we know that "buffer" and codedOutputStream.InternalBuffer are identical.
-                state.writeBufferHelper.codedOutputStream.InternalOutputStream.Write(state.writeBufferHelper.codedOutputStream.InternalBuffer, 0, state.position);
+                state.writeBufferHelper.codedOutputStream.InternalOutputStream.Write(state.writeBufferHelper.codedOutputStream.InternalBuffer.Span.Slice(0, state.position));
                 // reset position, limit stays the same because we are reusing the codedOutputStream's internal buffer.
                 state.position = 0;
             }
@@ -124,7 +124,7 @@ namespace Google.Protobuf
             if (state.writeBufferHelper.codedOutputStream?.InternalOutputStream != null)
             {
                 // because we're using coded output stream, we know that "buffer" and codedOutputStream.InternalBuffer are identical.
-                state.writeBufferHelper.codedOutputStream.InternalOutputStream.Write(state.writeBufferHelper.codedOutputStream.InternalBuffer, 0, state.position);
+                state.writeBufferHelper.codedOutputStream.InternalOutputStream.Write(state.writeBufferHelper.codedOutputStream.InternalBuffer.Span.Slice(0, state.position));
                 state.position = 0;
             }
             else if (state.writeBufferHelper.bufferWriter != null)

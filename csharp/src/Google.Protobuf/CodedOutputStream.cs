@@ -39,11 +39,11 @@ namespace Google.Protobuf
         /// </summary>
         public static readonly int DefaultBufferSize = 4096;
 
-        private readonly bool leaveOpen;
-        private readonly byte[] buffer;
+        private bool leaveOpen;
+        private Memory<byte> buffer;
         private WriterInternalState state;
 
-        private readonly Stream output;
+        private Stream output;
 
         #region Construction
         /// <summary>
@@ -51,7 +51,7 @@ namespace Google.Protobuf
         /// byte array. If more bytes are written than fit in the array,
         /// OutOfSpaceException will be thrown.
         /// </summary>
-        public CodedOutputStream(byte[] flatArray) : this(flatArray, 0, flatArray.Length)
+        public CodedOutputStream(Memory<byte> flatArray) : this(flatArray, 0, flatArray.Length)
         {
         }
 
@@ -60,24 +60,14 @@ namespace Google.Protobuf
         /// byte array slice. If more bytes are written than fit in the array,
         /// OutOfSpaceException will be thrown.
         /// </summary>
-        private CodedOutputStream(byte[] buffer, int offset, int length)
+        private CodedOutputStream(Memory<byte> buffer, int offset, int length)
         {
-            this.output = null;
-            this.buffer = ProtoPreconditions.CheckNotNull(buffer, nameof(buffer));
-            this.state.position = offset;
-            this.state.limit = offset + length;
-            WriteBufferHelper.Initialize(this, out this.state.writeBufferHelper);
-            leaveOpen = true; // Simple way of avoiding trying to dispose of a null reference
+            Initialize(buffer, offset, length);
         }
 
         private CodedOutputStream(Stream output, byte[] buffer, bool leaveOpen)
         {
-            this.output = ProtoPreconditions.CheckNotNull(output, nameof(output));
-            this.buffer = buffer;
-            this.state.position = 0;
-            this.state.limit = buffer.Length;
-            WriteBufferHelper.Initialize(this, out this.state.writeBufferHelper);
-            this.leaveOpen = leaveOpen;
+            Initialize(output, buffer, leaveOpen);
         }
 
         /// <summary>
@@ -119,6 +109,51 @@ namespace Google.Protobuf
         /// if <c>false</c>, the provided stream is disposed as well.</param>
         public CodedOutputStream(Stream output, int bufferSize, bool leaveOpen) : this(output, new byte[bufferSize], leaveOpen)
         {
+        }
+
+        public void Initialize(Memory<byte> flatArray)
+        {
+            Initialize(flatArray, 0, flatArray.Length);
+        }
+
+        public void Initialize(Memory<byte> buffer, int offset, int length)
+        {
+            this.output = null;
+            this.buffer = buffer;
+            this.state.position = offset;
+            this.state.limit = offset + length;
+            WriteBufferHelper.Initialize(this, out this.state.writeBufferHelper);
+            leaveOpen = true; // Simple way of avoiding trying to dispose of a null reference
+        }
+
+        public void Initialize(Stream output, byte[] buffer, bool leaveOpen)
+        {
+            this.output = ProtoPreconditions.CheckNotNull(output, nameof(output));
+            this.buffer = buffer;
+            this.state.position = 0;
+            this.state.limit = buffer.Length;
+            WriteBufferHelper.Initialize(this, out this.state.writeBufferHelper);
+            this.leaveOpen = leaveOpen;
+        }
+
+        public void Initialize(Stream output)
+        {
+            Initialize(output, DefaultBufferSize, false);
+        }
+
+        public void Initialize(Stream output, int bufferSize)
+        {
+            Initialize(output, new byte[bufferSize], false);
+        }
+
+        public void Initialize(Stream output, bool leaveOpen)
+        {
+            Initialize(output, DefaultBufferSize, leaveOpen);
+        }
+
+        public void Initialize(Stream output, int bufferSize, bool leaveOpen)
+        {
+            Initialize(output, new byte[bufferSize], leaveOpen);
         }
         #endregion
 
@@ -172,7 +207,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteDouble(double value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteDouble(ref span, ref state, value);
         }
 
@@ -182,7 +217,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteFloat(float value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteFloat(ref span, ref state, value);
         }
 
@@ -192,7 +227,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteUInt64(ulong value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteUInt64(ref span, ref state, value);
         }
 
@@ -202,7 +237,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteInt64(long value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteInt64(ref span, ref state, value);
         }
 
@@ -212,7 +247,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteInt32(int value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteInt32(ref span, ref state, value);
         }
 
@@ -222,7 +257,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteFixed64(ulong value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteFixed64(ref span, ref state, value);
         }
 
@@ -232,7 +267,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteFixed32(uint value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteFixed32(ref span, ref state, value);
         }
 
@@ -242,7 +277,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteBool(bool value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteBool(ref span, ref state, value);
         }
 
@@ -253,7 +288,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteString(string value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteString(ref span, ref state, value);
         }
 
@@ -267,7 +302,7 @@ namespace Google.Protobuf
             // TODO: if the message doesn't implement IBufferMessage (and thus does not provide the InternalWriteTo method),
             // what we're doing here works fine, but could be more efficient.
             // For now, this inefficiency is fine, considering this is only a backward-compatibility scenario (and regenerating the code fixes it).
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WriteContext.Initialize(ref span, ref state, out WriteContext ctx);
             try
             {
@@ -289,7 +324,7 @@ namespace Google.Protobuf
             // TODO: if the message doesn't implement IBufferMessage (and thus does not provide the InternalWriteTo method),
             // what we're doing here works fine, but could be more efficient.
             // For now, this inefficiency is fine, considering this is only a backward-compatibility scenario (and regenerating the code fixes it).
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WriteContext.Initialize(ref span, ref state, out WriteContext ctx);
             try
             {
@@ -307,7 +342,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteGroup(IMessage value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WriteContext.Initialize(ref span, ref state, out WriteContext ctx);
             try
             {
@@ -326,7 +361,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteBytes(ByteString value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteBytes(ref span, ref state, value);
         }
 
@@ -336,7 +371,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteUInt32(uint value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteUInt32(ref span, ref state, value);
         }
 
@@ -346,7 +381,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteEnum(int value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteEnum(ref span, ref state, value);
         }
 
@@ -356,7 +391,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write.</param>
         public void WriteSFixed32(int value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteSFixed32(ref span, ref state, value);
         }
 
@@ -366,7 +401,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteSFixed64(long value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteSFixed64(ref span, ref state, value);
         }
 
@@ -376,7 +411,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteSInt32(int value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteSInt32(ref span, ref state, value);
         }
 
@@ -386,7 +421,7 @@ namespace Google.Protobuf
         /// <param name="value">The value to write</param>
         public void WriteSInt64(long value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteSInt64(ref span, ref state, value);
         }
 
@@ -399,7 +434,7 @@ namespace Google.Protobuf
         /// <param name="length">Length value, in bytes.</param>
         public void WriteLength(int length)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteLength(ref span, ref state, length);
         }
 
@@ -413,7 +448,7 @@ namespace Google.Protobuf
         /// <param name="type">The wire format type of the tag to write</param>
         public void WriteTag(int fieldNumber, WireFormat.WireType type)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteTag(ref span, ref state, fieldNumber, type);
         }
 
@@ -423,7 +458,7 @@ namespace Google.Protobuf
         /// <param name="tag">The encoded tag</param>
         public void WriteTag(uint tag)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteTag(ref span, ref state, tag);
         }
 
@@ -433,7 +468,7 @@ namespace Google.Protobuf
         /// <param name="b1">The encoded tag</param>
         public void WriteRawTag(byte b1)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteRawTag(ref span, ref state, b1);
         }
 
@@ -444,7 +479,7 @@ namespace Google.Protobuf
         /// <param name="b2">The second byte of the encoded tag</param>
         public void WriteRawTag(byte b1, byte b2)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteRawTag(ref span, ref state, b1, b2);
         }
 
@@ -456,7 +491,7 @@ namespace Google.Protobuf
         /// <param name="b3">The third byte of the encoded tag</param>
         public void WriteRawTag(byte b1, byte b2, byte b3)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteRawTag(ref span, ref state, b1, b2, b3);
         }
 
@@ -469,7 +504,7 @@ namespace Google.Protobuf
         /// <param name="b4">The fourth byte of the encoded tag</param>
         public void WriteRawTag(byte b1, byte b2, byte b3, byte b4)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteRawTag(ref span, ref state, b1, b2, b3, b4);
         }
 
@@ -483,7 +518,7 @@ namespace Google.Protobuf
         /// <param name="b5">The fifth byte of the encoded tag</param>
         public void WriteRawTag(byte b1, byte b2, byte b3, byte b4, byte b5)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteRawTag(ref span, ref state, b1, b2, b3, b4, b5);
         }
         #endregion
@@ -497,25 +532,25 @@ namespace Google.Protobuf
         /// </summary>
         internal void WriteRawVarint32(uint value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteRawVarint32(ref span, ref state, value);
         }
 
         internal void WriteRawVarint64(ulong value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteRawVarint64(ref span, ref state, value);
         }
 
         internal void WriteRawLittleEndian32(uint value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteRawLittleEndian32(ref span, ref state, value);
         }
 
         internal void WriteRawLittleEndian64(ulong value)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteRawLittleEndian64(ref span, ref state, value);
         }
 
@@ -532,7 +567,7 @@ namespace Google.Protobuf
         /// </summary>
         internal void WriteRawBytes(byte[] value, int offset, int length)
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WritingPrimitives.WriteRawBytes(ref span, ref state, value, offset, length);
         }
 
@@ -579,7 +614,7 @@ namespace Google.Protobuf
         /// </summary>
         public void Flush()
         {
-            var span = new Span<byte>(buffer);
+            var span = buffer.Span;
             WriteBufferHelper.Flush(ref span, ref state);
         }
 
@@ -600,7 +635,7 @@ namespace Google.Protobuf
         /// </summary>
         public int SpaceLeft => WriteBufferHelper.GetSpaceLeft(ref state);
 
-        internal byte[] InternalBuffer => buffer;
+        internal Memory<byte> InternalBuffer => buffer;
 
         internal Stream InternalOutputStream => output;
 

@@ -35,18 +35,18 @@ namespace Google.Protobuf
         /// Whether to leave the underlying stream open when disposing of this stream.
         /// This is always true when there's no stream.
         /// </summary>
-        private readonly bool leaveOpen;
+        private bool leaveOpen;
 
         /// <summary>
         /// Buffer of data read from the stream or provided at construction time.
         /// </summary>
-        private readonly byte[] buffer;
+        private byte[] buffer;
 
         /// <summary>
         /// The stream to read further input from, or null if the byte array buffer was provided
         /// directly on construction, with no further data available.
         /// </summary>
-        private readonly Stream input;
+        private Stream input;
 
         /// <summary>
         /// The parser state is kept separately so that other parse implementations can reuse the same
@@ -112,6 +112,39 @@ namespace Google.Protobuf
         /// </summary>
         internal CodedInputStream(Stream input, byte[] buffer, int bufferPos, int bufferSize, bool leaveOpen)
         {
+            Initialize(input, buffer, bufferPos, bufferSize, leaveOpen);
+        }
+
+        internal void Initialize(byte[] buffer)
+        {
+            Initialize(null, ProtoPreconditions.CheckNotNull(buffer, "buffer"), 0, buffer.Length, true);
+        }
+
+        internal void Initialize(byte[] buffer, int offset, int length)
+        {
+            Initialize(null, ProtoPreconditions.CheckNotNull(buffer, "buffer"), offset, offset + length, true);
+            if (offset < 0 || offset > buffer.Length)
+            {
+                throw new ArgumentOutOfRangeException("offset", "Offset must be within the buffer");
+            }
+            if (length < 0 || offset + length > buffer.Length)
+            {
+                throw new ArgumentOutOfRangeException("length", "Length must be non-negative and within the buffer");
+            }
+        }
+
+        internal void Initialize(Stream input)
+        {
+            Initialize(input, false);
+        }
+
+        internal void Initialize(Stream input, bool leaveOpen)
+        {
+            Initialize(ProtoPreconditions.CheckNotNull(input, "input"), new byte[BufferSize], 0, 0, leaveOpen);
+        }
+
+        internal void Initialize(Stream input, byte[] buffer, int bufferPos, int bufferSize, bool leaveOpen)
+        {
             this.input = input;
             this.buffer = buffer;
             this.state.bufferPos = bufferPos;
@@ -122,6 +155,9 @@ namespace Google.Protobuf
             this.leaveOpen = leaveOpen;
 
             this.state.currentLimit = int.MaxValue;
+
+            DiscardUnknownFields = false;
+            ExtensionRegistry = null;
         }
 
         /// <summary>
@@ -632,7 +668,7 @@ namespace Google.Protobuf
         internal byte[] ReadRawBytes(int size)
         {
             var span = new ReadOnlySpan<byte>(buffer);
-            return ParsingPrimitives.ReadRawBytes(ref span, ref state, size);
+            return ParsingPrimitives.ReadRawBytes(ref span, ref state, size).ToArray();
         }
 
         /// <summary>
